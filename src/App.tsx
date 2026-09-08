@@ -13,6 +13,13 @@ import { ClientsPage } from './pages/ClientsPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import { FinancialOverviewPage } from './pages/financial/FinancialOverviewPage';
+import { ReceivablesListPage } from './pages/financial/ReceivablesListPage';
+import { PayablesListPage } from './pages/financial/PayablesListPage';
+import { CashFlowPage } from './pages/financial/CashFlowPage';
+import { EventResultPage } from './pages/financial/EventResultPage';
+import { CategoriesPage } from './pages/financial/CategoriesPage';
+import { FinancialReportsPage } from './pages/financial/FinancialReportsPage';
 import { api } from './services/api';
 import { SystemSettings, Toast, User } from './types';
 
@@ -40,6 +47,9 @@ export function App() {
   const [viewingContractId, setViewingContractId] = useState<string | null>(null);
   const [editingContractId, setEditingContractId] = useState<string | null>(null);
   const [managingTemplates, setManagingTemplates] = useState<boolean>(false);
+
+  // Financial module navigation & filter state
+  const [financialFilter, setFinancialFilter] = useState<{ eventName?: string; status?: string } | null>(null);
 
   // Theme state
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
@@ -243,6 +253,41 @@ export function App() {
           title: 'Configurações do Sistema',
           subtitle: 'Dados da empresa, prefixo da numeração e termos contratuais'
         };
+      case 'fin-overview':
+        return {
+          title: 'Visão Geral Financeira',
+          subtitle: 'Métricas executivas, contas vencidas e resultados consolidados de eventos'
+        };
+      case 'fin-receivables':
+        return {
+          title: 'Contas a Receber',
+          subtitle: 'Controle de parcelas, cobranças, baixas e emissão de recibos oficiais'
+        };
+      case 'fin-payables':
+        return {
+          title: 'Contas a Pagar',
+          subtitle: 'Despesas operacionais por evento, fornecedores, parcelas e pagamentos'
+        };
+      case 'fin-cash-flow':
+        return {
+          title: 'Fluxo de Caixa',
+          subtitle: 'Projeção cronológica rigorosamente separada em Previsto vs. Realizado'
+        };
+      case 'fin-events':
+        return {
+          title: 'Resultado por Evento',
+          subtitle: 'DRE operacional e margem de lucro por evento comercial'
+        };
+      case 'fin-categories':
+        return {
+          title: 'Categorias Financeiras',
+          subtitle: 'Centros de custo e classificação oficial de receitas e despesas operacionais'
+        };
+      case 'fin-reports':
+        return {
+          title: 'Relatórios Financeiros',
+          subtitle: 'Exportação executiva em PDF e CSV/Excel de receitas, despesas e fluxo'
+        };
       default:
         return {
           title: 'Credencia Orçamentos',
@@ -284,6 +329,10 @@ export function App() {
           onBack={handleBackFromContract}
           onEditContract={handleEditContract}
           onViewProposal={handleViewProposal}
+          onNavigateToFinancial={(_recId) => {
+            setViewingContractId(null);
+            setActiveTab('fin-receivables');
+          }}
           onAddToast={addToast}
           settings={settings}
         />
@@ -400,6 +449,56 @@ export function App() {
               onSettingsUpdated={setSettings}
               onManageTemplates={() => setManagingTemplates(true)}
             />
+          )}
+
+          {/* FINANCIAL MODULE TABS */}
+          {activeTab === 'fin-overview' && (
+            <FinancialOverviewPage
+              onNavigateTab={(tab, filter) => {
+                if (filter) setFinancialFilter(filter);
+                setActiveTab(tab as NavItemKey);
+              }}
+              onAddToast={addToast}
+            />
+          )}
+
+          {activeTab === 'fin-receivables' && (
+            <ReceivablesListPage
+              initialFilter={financialFilter}
+              onViewProposal={handleViewProposal}
+              onViewContract={handleViewContract}
+              onAddToast={addToast}
+            />
+          )}
+
+          {activeTab === 'fin-payables' && (
+            <PayablesListPage
+              initialFilter={financialFilter}
+              onAddToast={addToast}
+            />
+          )}
+
+          {activeTab === 'fin-cash-flow' && (
+            <CashFlowPage
+              initialViewType="previsto"
+              onAddToast={addToast}
+            />
+          )}
+
+          {activeTab === 'fin-events' && (
+            <EventResultPage
+              onViewProposal={handleViewProposal}
+              onViewContract={handleViewContract}
+              onAddToast={addToast}
+            />
+          )}
+
+          {activeTab === 'fin-categories' && (
+            <CategoriesPage onAddToast={addToast} />
+          )}
+
+          {activeTab === 'fin-reports' && (
+            <FinancialReportsPage onAddToast={addToast} />
           )}
         </>
       )}

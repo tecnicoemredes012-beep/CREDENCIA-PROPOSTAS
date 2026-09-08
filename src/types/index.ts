@@ -13,7 +13,7 @@ export interface User {
   name: string;
   email: string;
   pin?: string;
-  role: 'ADMIN' | 'OPERATOR';
+  role: 'ADMIN' | 'FINANCEIRO' | 'COMERCIAL' | 'OPERATOR';
 }
 
 export interface Client {
@@ -159,4 +159,5 @@ export interface Toast {
 }
 
 export * from './contract';
+export * from './financial';
 

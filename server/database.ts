@@ -349,6 +349,313 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_contract_history_contract ON contract_status_history (contractId);
   `);
 
+  // ==========================================
+  // MÓDULO FINANCEIRO — TABELAS E ESTRUTURAS
+  // ==========================================
+
+  // 15. Financial Accounts (Contas Bancárias / Caixa)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_accounts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'checking',
+      bankName TEXT,
+      agency TEXT,
+      accountNumber TEXT,
+      isDefault INTEGER NOT NULL DEFAULT 0,
+      isActive INTEGER NOT NULL DEFAULT 1,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+  `);
+
+  // 16. Financial Categories (Categorias de Receitas e Despesas)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'expense',
+      color TEXT,
+      isSystem INTEGER NOT NULL DEFAULT 0,
+      isActive INTEGER NOT NULL DEFAULT 1,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fin_categories_type ON financial_categories (type);
+    CREATE INDEX IF NOT EXISTS idx_fin_categories_active ON financial_categories (isActive);
+  `);
+
+  // 17. Financial Receivables (Contas a Receber / Faturamento)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_receivables (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      sequenceNumber INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      contractId TEXT,
+      proposalId TEXT,
+      proposalNumber TEXT,
+      contractNumber TEXT,
+      clientId TEXT NOT NULL,
+      clientSnapshot TEXT NOT NULL,
+      eventName TEXT NOT NULL,
+      eventStartDate TEXT,
+      eventEndDate TEXT,
+      proposalAmount REAL NOT NULL DEFAULT 0,
+      contractAmount REAL NOT NULL DEFAULT 0,
+      discountAmount REAL NOT NULL DEFAULT 0,
+      finalAmount REAL NOT NULL,
+      paymentMethod TEXT NOT NULL,
+      paymentTerms TEXT,
+      paymentConditionType TEXT NOT NULL DEFAULT 'a_vista',
+      installmentsCount INTEGER NOT NULL DEFAULT 1,
+      entryAmount REAL NOT NULL DEFAULT 0,
+      entryDate TEXT,
+      firstDueDate TEXT NOT NULL,
+      intervalDays INTEGER NOT NULL DEFAULT 30,
+      destinationAccountId TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      totalReceived REAL NOT NULL DEFAULT 0,
+      balance REAL NOT NULL,
+      notes TEXT,
+      organizationId TEXT NOT NULL DEFAULT 'default',
+      createdBy TEXT NOT NULL,
+      isDeleted INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (clientId) REFERENCES clients (id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_fin_receivables_year_seq ON financial_receivables (year, sequenceNumber);
+    CREATE INDEX IF NOT EXISTS idx_fin_receivables_contractId ON financial_receivables (contractId);
+    CREATE INDEX IF NOT EXISTS idx_fin_receivables_proposalId ON financial_receivables (proposalId);
+    CREATE INDEX IF NOT EXISTS idx_fin_receivables_clientId ON financial_receivables (clientId);
+    CREATE INDEX IF NOT EXISTS idx_fin_receivables_status ON financial_receivables (status);
+    CREATE INDEX IF NOT EXISTS idx_fin_receivables_eventName ON financial_receivables (eventName);
+  `);
+
+  // 18. Financial Receivable Installments (Parcelas a Receber)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_receivable_installments (
+      id TEXT PRIMARY KEY,
+      receivableId TEXT NOT NULL,
+      installmentNumber INTEGER NOT NULL,
+      totalInstallments INTEGER NOT NULL,
+      identifier TEXT NOT NULL,
+      isEntry INTEGER NOT NULL DEFAULT 0,
+      dueDate TEXT NOT NULL,
+      originalAmount REAL NOT NULL,
+      receivedAmount REAL NOT NULL DEFAULT 0,
+      balance REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      paymentMethod TEXT NOT NULL,
+      destinationAccountId TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (receivableId) REFERENCES financial_receivables (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fin_rec_inst_receivable ON financial_receivable_installments (receivableId);
+    CREATE INDEX IF NOT EXISTS idx_fin_rec_inst_dueDate ON financial_receivable_installments (dueDate);
+    CREATE INDEX IF NOT EXISTS idx_fin_rec_inst_status ON financial_receivable_installments (status);
+  `);
+
+  // 19. Financial Receipts (Recebimentos / Liquidações)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_receipts (
+      id TEXT PRIMARY KEY,
+      receivableId TEXT NOT NULL,
+      installmentId TEXT NOT NULL,
+      receiptNumber TEXT UNIQUE NOT NULL,
+      receivedDate TEXT NOT NULL,
+      amount REAL NOT NULL,
+      paymentMethod TEXT NOT NULL,
+      destinationAccountId TEXT,
+      transactionRef TEXT,
+      proofDocumentPath TEXT,
+      proofDocumentName TEXT,
+      notes TEXT,
+      isReversed INTEGER NOT NULL DEFAULT 0,
+      reversedAt TEXT,
+      reversedBy TEXT,
+      reversalReason TEXT,
+      receivedBy TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (receivableId) REFERENCES financial_receivables (id) ON DELETE CASCADE,
+      FOREIGN KEY (installmentId) REFERENCES financial_receivable_installments (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fin_receipts_receivable ON financial_receipts (receivableId);
+    CREATE INDEX IF NOT EXISTS idx_fin_receipts_installment ON financial_receipts (installmentId);
+    CREATE INDEX IF NOT EXISTS idx_fin_receipts_date ON financial_receipts (receivedDate);
+  `);
+
+  // 20. Financial Payables (Contas a Pagar / Despesas)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_payables (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      sequenceNumber INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      supplierName TEXT NOT NULL,
+      supplierDocument TEXT,
+      categoryId TEXT NOT NULL,
+      categoryName TEXT NOT NULL,
+      eventName TEXT,
+      proposalId TEXT,
+      contractId TEXT,
+      expenseDate TEXT NOT NULL,
+      dueDate TEXT NOT NULL,
+      amount REAL NOT NULL,
+      paidAmount REAL NOT NULL DEFAULT 0,
+      balance REAL NOT NULL,
+      paymentType TEXT NOT NULL DEFAULT 'a_vista',
+      installmentsCount INTEGER NOT NULL DEFAULT 1,
+      intervalDays INTEGER NOT NULL DEFAULT 30,
+      paymentMethod TEXT NOT NULL,
+      sourceAccountId TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      notes TEXT,
+      attachmentPath TEXT,
+      attachmentName TEXT,
+      organizationId TEXT NOT NULL DEFAULT 'default',
+      createdBy TEXT NOT NULL,
+      isDeleted INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (categoryId) REFERENCES financial_categories (id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_fin_payables_year_seq ON financial_payables (year, sequenceNumber);
+    CREATE INDEX IF NOT EXISTS idx_fin_payables_categoryId ON financial_payables (categoryId);
+    CREATE INDEX IF NOT EXISTS idx_fin_payables_eventName ON financial_payables (eventName);
+    CREATE INDEX IF NOT EXISTS idx_fin_payables_status ON financial_payables (status);
+    CREATE INDEX IF NOT EXISTS idx_fin_payables_dueDate ON financial_payables (dueDate);
+  `);
+
+  // 21. Financial Payable Installments (Parcelas de Despesas)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_payable_installments (
+      id TEXT PRIMARY KEY,
+      payableId TEXT NOT NULL,
+      installmentNumber INTEGER NOT NULL,
+      totalInstallments INTEGER NOT NULL,
+      identifier TEXT NOT NULL,
+      dueDate TEXT NOT NULL,
+      originalAmount REAL NOT NULL,
+      paidAmount REAL NOT NULL DEFAULT 0,
+      balance REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      notes TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (payableId) REFERENCES financial_payables (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fin_pay_inst_payable ON financial_payable_installments (payableId);
+    CREATE INDEX IF NOT EXISTS idx_fin_pay_inst_dueDate ON financial_payable_installments (dueDate);
+    CREATE INDEX IF NOT EXISTS idx_fin_pay_inst_status ON financial_payable_installments (status);
+  `);
+
+  // 22. Financial Payments (Pagamentos Realizados de Despesas)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_payments (
+      id TEXT PRIMARY KEY,
+      payableId TEXT NOT NULL,
+      installmentId TEXT NOT NULL,
+      paymentDate TEXT NOT NULL,
+      amount REAL NOT NULL,
+      paymentMethod TEXT NOT NULL,
+      sourceAccountId TEXT,
+      transactionRef TEXT,
+      proofDocumentPath TEXT,
+      proofDocumentName TEXT,
+      notes TEXT,
+      isReversed INTEGER NOT NULL DEFAULT 0,
+      reversedAt TEXT,
+      reversedBy TEXT,
+      reversalReason TEXT,
+      paidBy TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (payableId) REFERENCES financial_payables (id) ON DELETE CASCADE,
+      FOREIGN KEY (installmentId) REFERENCES financial_payable_installments (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fin_payments_payable ON financial_payments (payableId);
+    CREATE INDEX IF NOT EXISTS idx_fin_payments_installment ON financial_payments (installmentId);
+    CREATE INDEX IF NOT EXISTS idx_fin_payments_date ON financial_payments (paymentDate);
+  `);
+
+  // 23. Financial Official Receipt Documents (Recibos Oficiais REC-AAAA-XXXX)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_receipt_documents (
+      id TEXT PRIMARY KEY,
+      receiptNumber TEXT UNIQUE NOT NULL,
+      sequenceNumber INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      receivableId TEXT,
+      receiptId TEXT,
+      clientName TEXT NOT NULL,
+      clientDocument TEXT NOT NULL,
+      amount REAL NOT NULL,
+      amountInWords TEXT NOT NULL,
+      receiptDate TEXT NOT NULL,
+      paymentMethod TEXT NOT NULL,
+      referenceDescription TEXT NOT NULL,
+      installmentDescription TEXT,
+      eventName TEXT,
+      contractNumber TEXT,
+      proposalNumber TEXT,
+      issuerName TEXT NOT NULL,
+      issuerDocument TEXT NOT NULL,
+      notes TEXT,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_fin_receipt_docs_year_seq ON financial_receipt_documents (year, sequenceNumber);
+  `);
+
+  // 24. Financial Audit History (Histórico Imutável)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_history (
+      id TEXT PRIMARY KEY,
+      entityType TEXT NOT NULL,
+      entityId TEXT NOT NULL,
+      action TEXT NOT NULL,
+      previousValue TEXT,
+      newValue TEXT,
+      reason TEXT,
+      notes TEXT,
+      performedBy TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fin_history_entity ON financial_history (entityType, entityId);
+    CREATE INDEX IF NOT EXISTS idx_fin_history_date ON financial_history (createdAt);
+  `);
+
+  // 25. Financial Settings (Configurações Financeiras Operacionais)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financial_settings (
+      id TEXT PRIMARY KEY,
+      defaultReceivingAccountId TEXT,
+      defaultPaymentAccountId TEXT,
+      defaultPaymentMethod TEXT NOT NULL DEFAULT 'Boleto bancário',
+      defaultDueDays INTEGER NOT NULL DEFAULT 30,
+      allowFinancialWithoutContract INTEGER NOT NULL DEFAULT 0,
+      allowPaymentAboveValue INTEGER NOT NULL DEFAULT 0,
+      requireProofAttachment INTEGER NOT NULL DEFAULT 0,
+      requireReversalReason INTEGER NOT NULL DEFAULT 1,
+      receiptPrefix TEXT NOT NULL DEFAULT 'REC',
+      receiptHeaderText TEXT,
+      bankAccountDetails TEXT,
+      updatedAt TEXT NOT NULL
+    );
+  `);
+
   // Run initial seeds
   seedInitialData();
 }
@@ -710,7 +1017,149 @@ function seedInitialData() {
 
     console.log('✔ Modelo padrão de contrato de credenciamento cadastrado com 17 cláusulas.');
   }
+
+  // 6. Seed Financial Categories (18 official categories)
+  const catCount = db.prepare('SELECT COUNT(*) as count FROM financial_categories').get() as { count: number };
+  if (catCount.count === 0) {
+    const defaultExpenseCats = [
+      { name: 'Técnicos', color: '#0284c7' },
+      { name: 'Equipe de credenciamento', color: '#0ea5e9' },
+      { name: 'Transporte', color: '#f59e0b' },
+      { name: 'Combustível', color: '#d97706' },
+      { name: 'Alimentação', color: '#10b981' },
+      { name: 'Hospedagem', color: '#6366f1' },
+      { name: 'Passagens', color: '#8b5cf6' },
+      { name: 'Equipamentos', color: '#ec4899' },
+      { name: 'Locação', color: '#f43f5e' },
+      { name: 'Material de impressão', color: '#14b8a6' },
+      { name: 'Etiquetas e suprimentos', color: '#06b6d4' },
+      { name: 'Internet', color: '#3b82f6' },
+      { name: 'Frete', color: '#eab308' },
+      { name: 'Fornecedores', color: '#84cc16' },
+      { name: 'Comissão', color: '#a855f7' },
+      { name: 'Taxas', color: '#ef4444' },
+      { name: 'Impostos', color: '#dc2626' },
+      { name: 'Softwares', color: '#64748b' },
+      { name: 'Outros', color: '#94a3b8' }
+    ];
+
+    const defaultRevenueCats = [
+      { name: 'Prestação de Serviços de Credenciamento', color: '#12e000' },
+      { name: 'Locação de Equipamentos', color: '#0eb800' },
+      { name: 'Serviços Extras / Horas Adicionais', color: '#0a8900' },
+      { name: 'Outras Receitas', color: '#7cff6f' }
+    ];
+
+    const insertCat = db.prepare(`
+      INSERT INTO financial_categories (id, name, type, color, isSystem, isActive, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const cat of defaultExpenseCats) {
+      insertCat.run(randomUUID(), cat.name, 'expense', cat.color, 1, 1, now, now);
+    }
+    for (const cat of defaultRevenueCats) {
+      insertCat.run(randomUUID(), cat.name, 'revenue', cat.color, 1, 1, now, now);
+    }
+    console.log(`✔ Categorias financeiras cadastradas (${defaultExpenseCats.length} despesas + ${defaultRevenueCats.length} receitas).`);
+  }
+
+  // 7. Seed Financial Accounts
+  const accountCount = db.prepare('SELECT COUNT(*) as count FROM financial_accounts').get() as { count: number };
+  if (accountCount.count === 0) {
+    const insertAcc = db.prepare(`
+      INSERT INTO financial_accounts (id, name, type, bankName, agency, accountNumber, isDefault, isActive, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertAcc.run(
+      'acc-default-itau',
+      'Conta Corrente Principal (Banco Itaú)',
+      'checking',
+      'Banco Itaú Unibanco S.A.',
+      '0452',
+      '12345-6',
+      1,
+      1,
+      now,
+      now
+    );
+
+    insertAcc.run(
+      'acc-default-pix',
+      'Conta Pix Operacional',
+      'pix',
+      'Banco Itaú Unibanco S.A.',
+      '0452',
+      'pix@credencia.com.br',
+      0,
+      1,
+      now,
+      now
+    );
+
+    insertAcc.run(
+      'acc-default-caixa',
+      'Caixa Operacional Eventos',
+      'cash',
+      'Caixa Físico',
+      '-',
+      '-',
+      0,
+      1,
+      now,
+      now
+    );
+
+    console.log('✔ Contas financeiras iniciais cadastradas com sucesso.');
+  }
+
+  // 8. Seed Financial Settings
+  const finSettingsCount = db.prepare('SELECT COUNT(*) as count FROM financial_settings').get() as { count: number };
+  if (finSettingsCount.count === 0) {
+    db.prepare(`
+      INSERT INTO financial_settings (
+        id, defaultReceivingAccountId, defaultPaymentAccountId, defaultPaymentMethod,
+        defaultDueDays, allowFinancialWithoutContract, allowPaymentAboveValue,
+        requireProofAttachment, requireReversalReason, receiptPrefix, receiptHeaderText,
+        bankAccountDetails, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'default',
+      'acc-default-itau',
+      'acc-default-itau',
+      'Boleto bancário',
+      30,
+      0,
+      0,
+      0,
+      1,
+      'REC',
+      'Credencia Tecnologia e Eventos Ltda • CNPJ 38.921.450/0001-22',
+      'Banco Itaú (341) • Agência: 0452 • Conta Corrente: 12345-6 • Chave Pix: financeiro@credencia.com.br',
+      now
+    );
+    console.log('✔ Configurações financeiras operacionais inicializadas.');
+  }
+}
+
+// Monetary Precision Utilities (Safe 2-decimal money without floating point drift)
+export function roundMoney(val: number | string | null | undefined): number {
+  const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+  if (isNaN(num) || !isFinite(num)) return 0;
+  return Math.round(num * 100) / 100;
+}
+
+export function toCents(val: number | string | null | undefined): number {
+  const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+  if (isNaN(num) || !isFinite(num)) return 0;
+  return Math.round(num * 100);
+}
+
+export function fromCents(cents: number): number {
+  return Number((cents / 100).toFixed(2));
 }
 
 // Ensure database schema and seeds are initialized on load
 initDatabase();
+

@@ -13,6 +13,7 @@ import contractsRouter from './routes/contracts';
 import contractTemplatesRouter from './routes/contractTemplates';
 import settingsRouter from './routes/settings';
 import dashboardRouter from './routes/dashboard';
+import financialRouter from './routes/financial';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +38,7 @@ app.use('/api/contracts', contractsRouter);
 app.use('/api/contract-templates', contractTemplatesRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/financial', financialRouter);
 
 // Start server with Vite integration
 async function startServer() {

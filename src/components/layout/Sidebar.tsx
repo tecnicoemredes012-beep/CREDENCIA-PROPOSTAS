@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   FileText,
@@ -8,12 +8,35 @@ import {
   Settings,
   FileSignature,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  DollarSign,
+  ArrowUpRight,
+  ArrowDownRight,
+  TrendingUp,
+  PieChart,
+  Tag,
+  FileSpreadsheet
 } from 'lucide-react';
 import credenciaLogoLockup from '../../assets/credencia-logo-lockup.png';
 import credenciaLogoIcon from '../../assets/credencia-logo-icon.png';
 
-export type NavItemKey = 'dashboard' | 'proposals' | 'new-proposal' | 'contracts' | 'clients' | 'services' | 'settings';
+export type NavItemKey =
+  | 'dashboard'
+  | 'proposals'
+  | 'new-proposal'
+  | 'contracts'
+  | 'clients'
+  | 'services'
+  | 'settings'
+  | 'fin-overview'
+  | 'fin-receivables'
+  | 'fin-payables'
+  | 'fin-cash-flow'
+  | 'fin-events'
+  | 'fin-categories'
+  | 'fin-reports';
 
 interface SidebarProps {
   activeTab: NavItemKey;
@@ -35,11 +58,27 @@ export function Sidebar({
   isCollapsed,
   onToggleCollapse
 }: SidebarProps) {
-  const items: NavItem[] = [
+  const isFinancialActive = activeTab.startsWith('fin-');
+  const [financialExpanded, setFinancialExpanded] = useState<boolean>(true);
+
+  const mainItems: NavItem[] = [
     { id: 'dashboard', label: 'Painel Inicial', icon: LayoutDashboard },
     { id: 'proposals', label: 'Propostas', icon: FileText },
     { id: 'new-proposal', label: 'Nova Proposta', icon: FilePlus },
     { id: 'contracts', label: 'Contratos', icon: FileSignature },
+  ];
+
+  const financialItems: NavItem[] = [
+    { id: 'fin-overview', label: 'Visão Geral', icon: DollarSign },
+    { id: 'fin-receivables', label: 'Contas a Receber', icon: ArrowUpRight },
+    { id: 'fin-payables', label: 'Contas a Pagar', icon: ArrowDownRight },
+    { id: 'fin-cash-flow', label: 'Fluxo de Caixa', icon: TrendingUp },
+    { id: 'fin-events', label: 'Resultado por Evento', icon: Layers },
+    { id: 'fin-categories', label: 'Categorias', icon: Tag },
+    { id: 'fin-reports', label: 'Relatórios', icon: FileSpreadsheet },
+  ];
+
+  const bottomItems: NavItem[] = [
     { id: 'clients', label: 'Clientes', icon: Users },
     { id: 'services', label: 'Serviços', icon: Layers },
     { id: 'settings', label: 'Configurações', icon: Settings }
@@ -80,14 +119,15 @@ export function Sidebar({
 
       {/* Navigation List */}
       <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
-        {items.map((item) => {
+        {/* Main Items */}
+        {mainItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition select-none cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-semibold transition select-none cursor-pointer ${
                 isActive
                   ? 'cx-nav-active'
                   : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100/80'
@@ -106,6 +146,91 @@ export function Sidebar({
             </button>
           );
         })}
+
+        {/* Separator / Financial Group */}
+        <div className="pt-2">
+          {!isCollapsed ? (
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setFinancialExpanded(prev => !prev)}
+                className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-sm font-bold select-none cursor-pointer transition ${
+                  isFinancialActive
+                    ? 'text-emerald-900 bg-emerald-50/60 font-extrabold'
+                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100/80'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <DollarSign size={18} className="text-[#0a8900] shrink-0" />
+                  <span>Financeiro</span>
+                </div>
+                {financialExpanded ? <ChevronUp size={15} className="text-slate-400" /> : <ChevronDown size={15} className="text-slate-400" />}
+              </button>
+
+              {/* Collapsible Submenu */}
+              {financialExpanded && (
+                <div className="pl-4 pr-1 py-1 space-y-1 border-l-2 border-emerald-300 ml-5 my-1">
+                  {financialItems.map((sub) => {
+                    const SubIcon = sub.icon;
+                    const isSubActive = activeTab === sub.id;
+                    return (
+                      <button
+                        key={sub.id}
+                        onClick={() => onSelectTab(sub.id)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition select-none cursor-pointer ${
+                          isSubActive
+                            ? 'bg-emerald-100 text-emerald-950 font-bold'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                        }`}
+                      >
+                        <SubIcon size={14} className={isSubActive ? 'text-emerald-700' : 'text-slate-400'} />
+                        <span className="truncate">{sub.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Collapsed Financial Button */
+            <button
+              onClick={() => onSelectTab('fin-overview')}
+              className={`w-full flex items-center justify-center p-2.5 rounded-xl transition cursor-pointer ${
+                isFinancialActive
+                  ? 'cx-nav-active'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Módulo Financeiro"
+            >
+              <DollarSign size={18} className={isFinancialActive ? 'text-[#12e000]' : 'text-slate-500'} />
+            </button>
+          )}
+        </div>
+
+        {/* Bottom Items */}
+        <div className="pt-2 border-t border-slate-100">
+          {bottomItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onSelectTab(item.id)}
+                className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-semibold transition select-none cursor-pointer ${
+                  isActive
+                    ? 'cx-nav-active'
+                    : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100/80'
+                } ${isCollapsed ? 'justify-center px-2' : ''}`}
+                title={isCollapsed ? item.label : undefined}
+              >
+                <Icon size={18} className={`shrink-0 ${isActive ? 'text-[#12e000]' : 'text-slate-500'}`} />
+                {!isCollapsed && (
+                  <span className="truncate flex-1 text-left">{item.label}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       {/* Footer info */}
@@ -121,3 +246,4 @@ export function Sidebar({
     </aside>
   );
 }
+

@@ -6,7 +6,9 @@ import { ContractPreviewA4 } from '../components/contracts/ContractPreviewA4';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { LoadingState } from '../components/ui/Loading';
-import { formatDateTime, formatDate } from '../utils/formatters';
+import { Modal } from '../components/ui/Modal';
+import { GenerateReceivableModal } from '../components/financial/GenerateReceivableModal';
+import { formatDateTime, formatDate, formatCurrency } from '../utils/formatters';
 import {
   ArrowLeft,
   Edit,
@@ -23,7 +25,8 @@ import {
   DollarSign,
   FileText,
   Paperclip,
-  X
+  X,
+  Eye
 } from 'lucide-react';
 
 interface ContractViewPageProps {
@@ -33,6 +36,7 @@ interface ContractViewPageProps {
   onViewProposal: (id: string) => void;
   onAddToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void;
   settings?: SystemSettings | null;
+  onNavigateToFinancial?: (receivableId?: string) => void;
 }
 
 export function ContractViewPage({
@@ -41,12 +45,18 @@ export function ContractViewPage({
   onEditContract,
   onViewProposal,
   onAddToast,
-  settings
+  settings,
+  onNavigateToFinancial
 }: ContractViewPageProps) {
   const [contract, setContract] = useState<Contract | null>(null);
   const [currentSettings, setCurrentSettings] = useState<SystemSettings | null>(settings || null);
   const [loading, setLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
+
+  // Financial Integration State
+  const [existingReceivable, setExistingReceivable] = useState<any | null>(null);
+  const [postSignPromptOpen, setPostSignPromptOpen] = useState(false);
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -81,6 +91,16 @@ export function ContractViewPage({
       setLoading(true);
       const res = await api.contracts.get(contractId);
       setContract(res);
+
+      // Check if financial is already generated for this contract
+      try {
+        const recRes = await api.financial.getReceivableByContract(contractId);
+        if (recRes?.exists) {
+          setExistingReceivable(recRes.receivable);
+        } else {
+          setExistingReceivable(null);
+        }
+      } catch {}
     } catch (err: any) {
       onAddToast('error', 'Erro ao carregar contrato: ' + err.message);
     } finally {
@@ -130,9 +150,10 @@ export function ContractViewPage({
         signatureNotes: signNotes,
         performedBy: 'Administrador'
       });
-      onAddToast('success', 'Contrato marcado como assinado! Processo pronto para liberação financeira.');
       setSignModalOpen(false);
-      fetchContract();
+      await fetchContract();
+      // Prompt user to generate financial immediately
+      setPostSignPromptOpen(true);
     } catch (err: any) {
       onAddToast('error', 'Erro ao registrar assinatura: ' + err.message);
     }
@@ -152,9 +173,10 @@ export function ContractViewPage({
         notes: uploadNotes || 'Contrato assinado digitalizado',
         performedBy: 'Administrador'
       });
-      onAddToast('success', 'Contrato assinado anexado com sucesso!');
       setUploadModalOpen(false);
-      fetchContract();
+      await fetchContract();
+      // Prompt user to generate financial immediately
+      setPostSignPromptOpen(true);
     } catch (err: any) {
       onAddToast('error', 'Erro ao anexar contrato assinado: ' + err.message);
     }
@@ -163,6 +185,7 @@ export function ContractViewPage({
   const handleNewVersionConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contract) return;
+
     try {
       const res = await api.contracts.newVersion(contract.id, newVersionReason, 'Administrador');
       onAddToast('success', `Nova versão ${res.newVersion} criada com sucesso.`);
@@ -345,9 +368,11 @@ export function ContractViewPage({
       <div className="no-print p-4 rounded-2xl border border-slate-200/90 bg-white shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-            contract.financialReleaseStatus === 'ready_for_release' || contract.status === 'signed'
-              ? 'bg-[#efffed] text-[#0a8900]'
-              : 'bg-slate-100 text-slate-400'
+            existingReceivable
+              ? 'bg-emerald-100 text-emerald-800'
+              : (contract.status === 'signed' || contract.financialReleaseStatus === 'ready_for_release'
+                ? 'bg-[#efffed] text-[#0a8900]'
+                : 'bg-slate-100 text-slate-400')
           }`}>
             <DollarSign size={20} />
           </div>
@@ -356,7 +381,11 @@ export function ContractViewPage({
               <span className="font-bold text-xs text-slate-800 uppercase tracking-wide">
                 Integração com o Módulo Financeiro
               </span>
-              {contract.status === 'signed' || contract.financialReleaseStatus === 'ready_for_release' ? (
+              {existingReceivable ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                  Financeiro Ativo ({existingReceivable.code})
+                </span>
+              ) : (contract.status === 'signed' || contract.financialReleaseStatus === 'ready_for_release' || currentSettings?.allowFinancialWithoutContract ? (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
                   Pronto para Liberação
                 </span>
@@ -364,25 +393,53 @@ export function ContractViewPage({
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold">
                   Aguardando Assinatura do Contrato
                 </span>
-              )}
+              ))}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              {contract.status === 'signed' || contract.financialReleaseStatus === 'ready_for_release'
-                ? 'Contrato assinado. O processo está pronto para liberação financeira e faturamento.'
-                : 'A liberação financeira das faturas exige a formalização e assinatura deste contrato.'}
+              {existingReceivable
+                ? 'Este contrato já possui lançamentos financeiros.'
+                : (contract.status === 'signed' || contract.financialReleaseStatus === 'ready_for_release'
+                  ? 'Contrato assinado. O processo está pronto para liberação financeira e faturamento.'
+                  : 'A liberação financeira das faturas exige a formalização e assinatura deste contrato.')}
             </p>
           </div>
         </div>
 
         <div>
-          <button
-            disabled
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed flex items-center gap-1.5"
-            title="O módulo financeiro definitivo será disponibilizado na próxima etapa"
-          >
-            <DollarSign size={14} />
-            Gerar Financeiro (Em breve)
-          </button>
+          {existingReceivable ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (onNavigateToFinancial) {
+                  onNavigateToFinancial(existingReceivable.id);
+                } else {
+                  onAddToast('info', `Abrindo financeiro ${existingReceivable.code}...`);
+                }
+              }}
+              leftIcon={<Eye size={14} className="text-emerald-700" />}
+            >
+              Ver financeiro
+            </Button>
+          ) : (contract.status === 'signed' || contract.financialReleaseStatus === 'ready_for_release' || currentSettings?.allowFinancialWithoutContract ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setGenerateModalOpen(true)}
+              leftIcon={<DollarSign size={14} />}
+            >
+              Gerar financeiro
+            </Button>
+          ) : (
+            <button
+              disabled
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed flex items-center gap-1.5"
+              title="Assine o contrato primeiro para liberar a geração do financeiro"
+            >
+              <DollarSign size={14} />
+              Gerar financeiro
+            </button>
+          ))}
         </div>
       </div>
 
@@ -637,6 +694,78 @@ export function ContractViewPage({
           </form>
         </div>
       )}
+
+      {/* Modal: Prompt Imediato pós Assinatura */}
+      {postSignPromptOpen && (
+        <Modal
+          isOpen={postSignPromptOpen}
+          onClose={() => setPostSignPromptOpen(false)}
+          title="Contrato Assinado com Sucesso"
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 flex items-start gap-3">
+              <CheckCircle2 size={24} className="text-[#0a8900] shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-sm text-slate-900 block">
+                  Contrato assinado com sucesso.
+                </span>
+                <p className="text-xs text-slate-600 mt-1">
+                  Deseja gerar o financeiro deste contrato agora?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPostSignPromptOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setPostSignPromptOpen(false);
+                  onAddToast('info', 'Você poderá gerar o financeiro a qualquer momento pelo botão "Gerar financeiro".');
+                }}
+              >
+                Gerar depois
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setPostSignPromptOpen(false);
+                  setGenerateModalOpen(true);
+                }}
+                leftIcon={<DollarSign size={15} />}
+              >
+                Gerar financeiro
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal: Parametrização e Geração do Financeiro */}
+      {generateModalOpen && contract && (
+        <GenerateReceivableModal
+          isOpen={generateModalOpen}
+          onClose={() => setGenerateModalOpen(false)}
+          contract={contract}
+          onSuccess={(receivableId) => {
+            fetchContract();
+            if (onNavigateToFinancial) {
+              onNavigateToFinancial(receivableId);
+            }
+          }}
+          onAddToast={onAddToast}
+        />
+      )}
     </div>
   );
 }
+
