@@ -29,11 +29,29 @@ Sistema web responsivo para elaboração, gestão, impressão e emissão em PDF 
 - Editor de cláusulas padrão e minutas personalizadas.
 - Gestão de versões (`v1`, `v2`, etc.) e controle de liberação financeira.
 
-### 4. Configurações Globais
+### 4. Módulo Financeiro & Operações de Eventos
+- **Integração Imediata Pós-Assinatura:** Prompt automático para geração do contas a receber a partir do contrato assinado.
+- **Prevenção de Duplicidade:** Trava contra lançamentos repetidos com atalho "Ver financeiro".
+- **Calculadora de Parcelas com Centavos Exatos:** À vista, parcelado e entrada + parcelas com arredondamento compensado na última parcela.
+- **Contas a Receber e Recibos Oficiais:** Baixas parciais/totais, estornos com justificativa auditada e emissão de recibo timbrado oficial (`REC-AAAA-XXXX`) com valor por extenso em reais.
+- **Contas a Pagar por Evento:** Controle de despesas operacionais com as 18 categorias oficiais do credenciamento.
+- **DRE Operacional por Evento:** Resultado financeiro líquido (Receitas vs. Despesas) e Margem % com proteção contra divisão por zero.
+- **Fluxo de Caixa Rigoroso:** Separação estrita entre Previsto (a vencer) e Realizado (liquidado).
+
+### 5. Configurações Globais
 - Dados da empresa (Razão Social, Nome Fantasia, CNPJ, Endereço, E-mail, Telefone).
-- Representante legal para assinaturas.
+- Representante legal para assinaturas e parâmetros jurídicos.
 - Texto do rodapé oficial do PDF/Impressão.
 - Termos e condições contratuais padrão.
+
+---
+
+## 📹 Demonstrações em Vídeo dos Fluxos
+
+| Demonstração | Descrição | Arquivo |
+| :--- | :--- | :--- |
+| **Contrato & Contas a Receber** | Assinatura, geração de financeiro, cálculo de parcelas e liquidação completa. | [Ver Demonstração](docs/videos/fluxo_financeiro_contrato_recebiveis.webp) |
+| **Despesas, DRE & Fluxo de Caixa** | Cadastro de despesas com categorias oficiais, DRE por evento e fluxo previsto vs. realizado. | [Ver Demonstração](docs/videos/fluxo_financeiro_despesas_dre_caixa.webp) |
 
 ---
 
